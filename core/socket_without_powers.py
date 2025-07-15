@@ -1,34 +1,41 @@
 import socket
 
 class ParentSocket:
-    DEFAULT_HOST = socket.gethostname()
-    DEFAULT_PORT = 80
     '''
     Creates a custom, parent socket class.
     Utilised by ClientSocket and ServerSocket.
     '''
     KB = 1024
+    DEFAULT_HOST = socket.gethostname()
+    DEFAULT_PORT = 80
+    
     def __init__(self, sock = None, debug = False):
         '''
         Initialises a SocketWithoutPowers.ParentSocket object.
         Takes an optional socket.socket object,
         and an optional boolean for debugging.
         '''
-        self.debug_enabled = debug
+        self.__debug_enabled = debug
 
         if sock is None:
-            self.debug('Creating default socket.')
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.__debug('Creating default socket.')
+            self.__sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         else:
-            self.debug('Creating passed socket.')
-            self.sock = sock
+            self.__debug('Creating passed socket.')
+            self.__sock = sock
     
-    def debug(self, message):
+    def __debug(self, message):
         '''
         Prints a debug message on the console if debug is enabled.
         '''
-        if self.debug_enabled:
+        if self.__debug_enabled:
             print('DEBUG:', message)
+    
+    def close(self):
+        '''
+        Calls socket.close() on the saved socket.
+        '''
+        self.__sock.close()
 
 class ClientSocket(ParentSocket):
     '''
@@ -39,14 +46,13 @@ class ClientSocket(ParentSocket):
         Initialises a ClientSocket warpper object.
         '''
         super().__init__(sock, debug)
-        self.__connected = False
 
     def connect(self, hostname, port):
         '''
         Connects to a remote host and port using the base socket class.
         '''
-        self.sock.connect((hostname, port))
-        self.debug('Connected!')
+        self.__sock.connect((hostname, port))
+        self.__debug('Connected!')
     
     def send(self, msg):
         '''
@@ -55,34 +61,34 @@ class ClientSocket(ParentSocket):
         but not socket.close().
         '''
         encoded_msg = msg.encode()
-        self.debug('Ready to send.')
+        self.__debug('Ready to send.')
         total_sent = 0
         while total_sent < len(encoded_msg):
             chunk = encoded_msg[total_sent:min(
                     total_sent + self.KB, len(encoded_msg))]
-            sent = self.sock.send(chunk)
-            self.debug('Chunk sent!')
+            sent = self.__sock.send(chunk)
+            self.__debug('Chunk sent!')
             if sent == 0:
                 raise RuntimeError('Socket connection broken.')
             total_sent += sent
         self.shutdown()
-        self.debug('All chunks sent!')
+        self.__debug('All chunks sent!')
 
     def receive(self):
         '''
         Returns a string object, message is from a client server,
         using a KB sized buffer.
         '''
-        self.debug('Beginning to receive.')
+        self.__debug('Beginning to receive.')
         chunks = []
         bytes_received = 0
         while True:
-            chunk = self.sock.recv(self.KB)
+            chunk = self.__sock.recv(self.KB)
             if chunk == b'':
-                self.debug('EOF!')
+                self.__debug('EOF!')
                 break
 
-            self.debug('Non-ending chunk received!')
+            self.__debug('Non-ending chunk received!')
             chunks.append(chunk)
             bytes_received += len(chunk)
         if chunks == []:
@@ -93,13 +99,7 @@ class ClientSocket(ParentSocket):
         '''
         Calls socket.shutdown(1) on the saved socket.
         '''
-        self.sock.shutdown(1)
-    
-    def close(self):
-        '''
-        Calls socket.close() on the saved socket.
-        '''
-        self.sock.close()
+        self.__sock.shutdown(1)
 
     def end(self):
         '''
@@ -107,7 +107,7 @@ class ClientSocket(ParentSocket):
         function.
         '''
         self.shutdown()
-        self.close()
+        self.close() # In parent class
 
 class ServerSocket(ParentSocket):
     '''
@@ -125,15 +125,15 @@ class ServerSocket(ParentSocket):
         '''
         Executes socket.bind((hostname, server_port)).
         '''
-        self.sock.bind((hostname, server_port))
-        self.debug('Bound!')
+        self.__sock.bind((hostname, server_port))
+        self.__debug('Bound!')
     
     def listen(self, count):
         '''
         Executes socket.listen(count).
         '''
-        self.sock.listen(count)
-        self.debug('Listening!')
+        self.__sock.listen(count)
+        self.__debug('Listening!')
     
     # Creating this to quickly spin up a socket.
     def bind_and_listen(self):
@@ -151,8 +151,8 @@ class ServerSocket(ParentSocket):
         Executes socket.accept() and returns a ClientSocket wrapper around the
         socket object.
         '''
-        self.debug('Accepting!')
-        return ClientSocket(self.sock.accept()[0], self.debug_enabled)
+        self.__debug('Accepting!')
+        return ClientSocket(self.__sock.accept()[0], self.__debug_enabled)
 
 class ChatClient(ParentSocket):
     '''
@@ -191,5 +191,5 @@ class ChatClient(ParentSocket):
             response = self.send_message(message)
             print(f'> {response}')
             if response == '':
-                self.debug('End command received, exiting chat.')
+                self.__debug('End command received, exiting chat.')
                 break
