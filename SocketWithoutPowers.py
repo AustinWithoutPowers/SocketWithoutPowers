@@ -1,55 +1,49 @@
 import socket
 
 class ParentSocket:
+    DEFAULT_HOST = socket.gethostname()
+    DEFAULT_PORT = 80
     '''
     Creates a custom, parent socket class.
-
-    Utilised by SocketWithoutPowers.ClientSocket and SocketWithoutPowers.ServerSocket.
+    Utilised by ClientSocket and ServerSocket.
     '''
     KB = 1024
     def __init__(self, sock = None, debug = False):
         '''
         Initialises a SocketWithoutPowers.ParentSocket object.
-
-        Takes an optional socket.socket object, and an optional boolean for debugging.
+        Takes an optional socket.socket object,
+        and an optional boolean for debugging.
         '''
-        self.debug_enabled = debug # Need to do this first
+        self.debug_enabled = debug
 
         if sock is None:
             self.debug('Creating default socket.')
-            self.sock = socket.socket(
-                socket.AF_INET, socket.SOCK_STREAM)
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         else:
-            self.debug('Creating provided socket.')
+            self.debug('Creating passed socket.')
             self.sock = sock
     
     def debug(self, message):
         '''
-        Prints a debug message if the debug flag is set.
-
-        Takes a string object for the message to (maybe) print.
+        Prints a debug message on the console if debug is enabled.
         '''
         if self.debug_enabled:
             print('DEBUG:', message)
 
 class ClientSocket(ParentSocket):
     '''
-    Creates a custom, client socket. Extends SocketWithoutPowers.ParentSocket.
+    Creates a custom, client socket. Extends ParentSocket.
     '''
     def __init__(self, sock = None, debug = False):
         '''
-        Initialises a SocketWithoutPowers.ClientSocket object.
-        
-        Takes an optional socket.socket object for the socket,
-        and an optional boolean for debugging.
+        Initialises a ClientSocket warpper object.
         '''
-        self = super().__init__(sock, debug)
+        super().__init__(sock, debug)
+        self.__connected = False
 
     def connect(self, hostname, port):
         '''
-        Connects to a remote host and port.
-
-        Takes two string objects for the server host and server port to connect to.
+        Connects to a remote host and port using the base socket class.
         '''
         self.sock.connect((hostname, port))
         self.debug('Connected!')
@@ -57,13 +51,11 @@ class ClientSocket(ParentSocket):
     def send(self, msg):
         '''
         Sends a message to the connected server, using a KB sized buffer.
-
-        This then triggers socket.shutdown() on the client socket, but not socket.close().
-
-        Takes a string object for the message.
+        This then triggers socket.shutdown() on the client socket,
+        but not socket.close().
         '''
         encoded_msg = msg.encode()
-        self.debug('Beginning to send.')
+        self.debug('Ready to send.')
         total_sent = 0
         while total_sent < len(encoded_msg):
             chunk = encoded_msg[total_sent:min(
@@ -78,71 +70,60 @@ class ClientSocket(ParentSocket):
 
     def receive(self):
         '''
-        Returns a string object, being the message from a client server, using a KB sized buffer.
+        Returns a string object, message is from a client server,
+        using a KB sized buffer.
         '''
         self.debug('Beginning to receive.')
         chunks = []
         bytes_received = 0
-        # Loop connection until message fully received
         while True:
             chunk = self.sock.recv(self.KB)
-            # Connection closed or message fully received
             if chunk == b'':
                 self.debug('EOF!')
                 break
 
             self.debug('Non-ending chunk received!')
-            # Add the chunk and increase byte count
             chunks.append(chunk)
             bytes_received += len(chunk)
+        if chunks == []:
+            return ''
         return chunks[0].decode()
     
     def shutdown(self):
         '''
-        Executes socket.shutdown(1) on the saved socket.
+        Calls socket.shutdown(1) on the saved socket.
         '''
         self.sock.shutdown(1)
     
     def close(self):
         '''
-        Executes socket.close() on the saved socket.
+        Calls socket.close() on the saved socket.
         '''
         self.sock.close()
 
     def end(self):
         '''
-        Executes both socket.shutdown(1) and socket.close() in a single function.
+        Executes both socket.shutdown(1) and socket.close() in a single
+        function.
         '''
         self.shutdown()
         self.close()
 
 class ServerSocket(ParentSocket):
     '''
-    Creates a custom, server socket. Extends SocketWithoutPowers.ParentSocket.
+    Creates a custom, server socket. Extends ParentSocket.
     '''
-
-    # Not sure if I like this instead of variables assigned to self.
-    DEFAULT_HOST = socket.gethostname()
-    DEFAULT_PORT = 80
     DEFAULT_LISTEN_COUNT = 5
 
-    def __init__(self, shutdown_phrase = 'SHUTDOWN',
-                 sock = None, debug = False):
+    def __init__(self, sock = None, debug = False):
         '''
-        Initialises a SocketWithoutPowers.ServerSocket object.
-        
-        Takes an optional string object for the shutdown phrase,
-        socket.socket object for the socket,
-        and an optional boolean for debugging.
+        Initialises a ServerSocket warpper object.
         '''
-        self = super().__init__(sock, debug)
-        self.__shutdown_phrase = shutdown_phrase
+        super().__init__(sock, debug)
 
     def bind(self, hostname, server_port):
         '''
         Executes socket.bind((hostname, server_port)).
-        
-        Takes two string objects, for the server host and the server port.
         '''
         self.sock.bind((hostname, server_port))
         self.debug('Bound!')
@@ -150,84 +131,65 @@ class ServerSocket(ParentSocket):
     def listen(self, count):
         '''
         Executes socket.listen(count).
-        
-        Takes an int object, for the maximum number of connections
-        to accept before dropping new messages.
         '''
         self.sock.listen(count)
         self.debug('Listening!')
     
-    # Creating this to quickly spin up a socket
+    # Creating this to quickly spin up a socket.
     def bind_and_listen(self):
         '''
-        Executes SocketWithoutPowers.ServerSocket.bind(hostname, server port) and
-        SocketWithoutPowers.ServerPort.listen(count) with \"default\" values.
+        Executes self.bind(hostname, server port) and self.listen(count) with
+        "default" values.
 
-        Mostly used for testing, but can be used for \"default\" setups.
+        Mostly used for testing, but can be used for "default" setups.
         '''
         self.bind(self.DEFAULT_HOST, self.DEFAULT_PORT)
         self.listen(self.DEFAULT_LISTEN_COUNT)
     
     def accept(self):
         '''
-        Executes socket.accept() and returns any incoming
-        SocketWithoutPowers.ClientSocket objects.
+        Executes socket.accept() and returns a ClientSocket wrapper around the
+        socket object.
         '''
         self.debug('Accepting!')
-        return ClientSocket(self.sock.accept()[0], self.debug)
+        return ClientSocket(self.sock.accept()[0], self.debug_enabled)
 
-class ChatClient:
+class ChatClient(ParentSocket):
     '''
-    Creates a chat client to communicate with a SocketWithoutPowers.ChatServer object.
+    Creates a chat client to communicate with a ChatServer object.
     '''
-    DEFAULT_HOST = socket.gethostname()
-    DEFAULT_PORT = 80
-
-    # Cannot think of a good way to do this...
-    OK = 0
-    NO_RESP = 1
-    AUTH_ERROR = 2
-
-    def __init__(self, server_host = DEFAULT_HOST,
-                 server_port = DEFAULT_PORT):
+    def __init__(self, sock = None, debug = False):
         '''
-        Initialises a SocketWithoutPowers.ChatClient object.
-        
-        Takes an optional string object for a server host,
-        and an optional int object for a server port.
+        Initialises a ChatClient object. Extends ParentSocket.
         '''
-        self.__server_host = server_host
-        self.__server_port = server_port
+        super().__init__(sock, debug)
+        self.__server_host = ParentSocket.DEFAULT_HOST
+        self.__server_port = ParentSocket.DEFAULT_PORT
 
     def send_message(self, message):
         '''
-        Sends a message to the server and returns a string object for the response.
-        
-        Takes a string object, for the message.
+        Sends a message to the server and returns a string object for the
+        response.
         '''
         sock = ClientSocket()
         sock.connect(self.__server_host,
-                             self.__server_port)
+            self.__server_port)
         sock.send(message)
         response = sock.receive()
         sock.end()
         if response is None:
-            return (self.NO_RESP, None)
-        return (self.OK, response)
+            return ''
+        return response
     
     def chat_loop(self, end_command = ''):
         '''
         Starts a "chat loop", which will send messages to the server until
-        an empty string (or provided string) is input.
-
-        Takes a string object, for a custom end command.
+        the server sends back an empty string due to shutdown.
         '''
         while True:
             message = input()
-            if message == end_command:
-                break
             response = self.send_message(message)
-            if response[0] == self.OK:
-                print(response[1])
-            else:
-                raise RuntimeError(f'Error code {response[0]}.')
+            print(f'> {response}')
+            if response == '':
+                self.debug('End command received, exiting chat.')
+                break
